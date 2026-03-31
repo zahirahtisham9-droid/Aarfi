@@ -29,8 +29,7 @@ body {
   min-height: 100vh;
   direction: rtl;
   overflow-x: hidden;
-  opacity: 0;
-  transition: opacity 0.3s ease;
+
 }
 
 /* ===== TOPBAR ===== */
@@ -737,21 +736,25 @@ let confCb    = null;
 // ===== AUTH =====
 let listenersStarted = false;
 
-onAuthStateChanged(auth, user => {
-  if (user) {
-    document.getElementById('loginPage').style.display = 'none';
-    document.getElementById('mainApp').style.display   = 'block';
-    document.body.style.opacity = '1';
-    if (!listenersStarted) {
-      listenersStarted = true;
-      startListeners();
-    }
-  } else {
-    document.getElementById('loginPage').style.display = 'flex';
-    document.getElementById('mainApp').style.display   = 'none';
-    document.body.style.opacity = '1';
-    listenersStarted = false;
+function showMainApp() {
+  document.getElementById('loginPage').style.display = 'none';
+  document.getElementById('mainApp').style.display   = 'block';
+  gotoPage('dashboard');
+  if (!listenersStarted) {
+    listenersStarted = true;
+    startListeners();
   }
+}
+
+function showLoginPage() {
+  document.getElementById('loginPage').style.display = 'flex';
+  document.getElementById('mainApp').style.display   = 'none';
+  listenersStarted = false;
+}
+
+onAuthStateChanged(auth, user => {
+  if (user) { showMainApp(); }
+  else       { showLoginPage(); }
 });
 
 window.switchTab = (tab) => {
@@ -774,7 +777,7 @@ window.doLogin = async () => {
   try {
     await signInWithEmailAndPassword(auth, em, pw);
     btn.textContent = '✅ Login کامیاب!';
-    // onAuthStateChanged will handle the redirect
+    showMainApp();
   } catch(e) {
     btn.disabled = false;
     btn.innerHTML = '🔐 Login کریں';
