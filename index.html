@@ -29,6 +29,8 @@ body {
   min-height: 100vh;
   direction: rtl;
   overflow-x: hidden;
+  opacity: 0;
+  transition: opacity 0.3s ease;
 }
 
 /* ===== TOPBAR ===== */
@@ -347,7 +349,7 @@ select#oStatus option[value="Returned"]   { color: #721c24; }
         <label>🔒 پاسورڈ</label>
         <input type="password" id="loginPw" placeholder="••••••••" dir="ltr">
       </div>
-      <button class="btn btn-primary btn-full" style="margin-top:6px;" onclick="doLogin()">
+      <button class="btn btn-primary btn-full" id="loginBtn" style="margin-top:6px;" onclick="doLogin()">
         🔐 Login کریں
       </button>
       <p style="text-align:center;font-size:13px;color:var(--text-light);margin-top:16px;">
@@ -733,14 +735,22 @@ let orderFilter = 'all';
 let confCb    = null;
 
 // ===== AUTH =====
+let listenersStarted = false;
+
 onAuthStateChanged(auth, user => {
   if (user) {
     document.getElementById('loginPage').style.display = 'none';
     document.getElementById('mainApp').style.display   = 'block';
-    startListeners();
+    document.body.style.opacity = '1';
+    if (!listenersStarted) {
+      listenersStarted = true;
+      startListeners();
+    }
   } else {
     document.getElementById('loginPage').style.display = 'flex';
     document.getElementById('mainApp').style.display   = 'none';
+    document.body.style.opacity = '1';
+    listenersStarted = false;
   }
 });
 
@@ -758,10 +768,16 @@ window.doLogin = async () => {
   const em = document.getElementById('loginEmail').value.trim();
   const pw = document.getElementById('loginPw').value;
   if (!em || !pw) { toast('ای میل اور پاسورڈ درج کریں','err'); return; }
+  const btn = document.getElementById('loginBtn');
+  btn.disabled = true;
+  btn.textContent = '⏳ لوڈ ہو رہا ہے...';
   try {
     await signInWithEmailAndPassword(auth, em, pw);
-    toast('Login کامیاب ✅','ok');
+    btn.textContent = '✅ Login کامیاب!';
+    // onAuthStateChanged will handle the redirect
   } catch(e) {
+    btn.disabled = false;
+    btn.innerHTML = '🔐 Login کریں';
     const msg = e.code === 'auth/user-not-found'    ? 'یہ email registered نہیں — پہلے Register کریں'
               : e.code === 'auth/wrong-password'     ? 'پاسورڈ غلط ہے'
               : e.code === 'auth/invalid-email'      ? 'Email درست نہیں'
