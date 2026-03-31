@@ -644,6 +644,19 @@ select#oStatus option[value="Returned"]   { color: #721c24; }
         <input type="number" id="oDisc" value="0" min="0" dir="ltr" oninput="calcOrder()">
       </div>
     </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+      <div class="form-group">
+        <label>🚚 ڈیلیوری چارجز (Rs.)</label>
+        <input type="number" id="oDelivery" value="0" min="0" dir="ltr" oninput="calcOrder()">
+      </div>
+      <div class="form-group">
+        <label>💳 ادائیگی کا طریقہ</label>
+        <select id="oPayType" onchange="calcOrder()">
+          <option value="Advance">💵 Advance</option>
+          <option value="COD">📦 COD (4% ٹیکس)</option>
+        </select>
+      </div>
+    </div>
     <div id="orderCalc"></div>
     <div class="form-group">
       <label>🚚 کوریئر کمپنی</label>
@@ -1045,13 +1058,15 @@ function populateProdSel() {
 window.openOrderModal = (o) => {
   document.getElementById('editOrdId').value = o ? o.id : '';
   document.getElementById('mOrderTitle').textContent = o ? 'آرڈر تبدیل کریں' : 'نیا آرڈر';
-  document.getElementById('oMob').value     = o?.customerMobile || '';
-  document.getElementById('oProd').value    = o?.productId      || '';
-  document.getElementById('oQty').value     = o?.quantity       || 1;
-  document.getElementById('oDisc').value    = o?.discount       || 0;
-  document.getElementById('oCourier').value = o?.courierName    || '';
-  document.getElementById('oTrack').value   = o?.trackingNumber || '';
-  document.getElementById('oStatus').value  = o?.status        || 'Pending';
+  document.getElementById('oMob').value      = o?.customerMobile || '';
+  document.getElementById('oProd').value     = o?.productId      || '';
+  document.getElementById('oQty').value      = o?.quantity       || 1;
+  document.getElementById('oDisc').value     = o?.discount       || 0;
+  document.getElementById('oDelivery').value = o?.deliveryCharges|| 0;
+  document.getElementById('oPayType').value  = o?.paymentType    || 'Advance';
+  document.getElementById('oCourier').value  = o?.courierName    || '';
+  document.getElementById('oTrack').value    = o?.trackingNumber || '';
+  document.getElementById('oStatus').value   = o?.status        || 'Pending';
   document.getElementById('custFound').textContent = o ? '✅ '+o.customerName : '';
   document.getElementById('custFound').style.color = 'var(--primary)';
   document.getElementById('orderCalc').innerHTML = '';
@@ -1071,31 +1086,41 @@ window.calcOrder = () => {
   const s = document.getElementById('oProd');
   const opt = s.options[s.selectedIndex];
   if (!opt?.value) { document.getElementById('orderCalc').innerHTML=''; return; }
-  const sell = parseFloat(opt.dataset.sell)||0;
-  const cost = parseFloat(opt.dataset.cost)||0;
-  const qty  = parseInt(document.getElementById('oQty').value)||1;
-  const disc = parseFloat(document.getElementById('oDisc').value)||0;
-  const sub  = sell * qty;
-  const fin  = sub - disc;
-  const prof = fin - (cost * qty);
-  document.getElementById('orderCalc').innerHTML = `
+  const sell     = parseFloat(opt.dataset.sell)||0;
+  const cost     = parseFloat(opt.dataset.cost)||0;
+  const qty      = parseInt(document.getElementById('oQty').value)||1;
+  const disc     = parseFloat(document.getElementById('oDisc').value)||0;
+  const delivery = parseFloat(document.getElementById('oDelivery').value)||0;
+  const payType  = document.getElementById('oPayType').value;
+  const sub      = sell * qty;
+  const fin      = sub - disc;
+  const grossProfit = fin - (cost * qty);
+  const codTax   = payType === 'COD' ? Math.round(fin * 0.04) : 0;
+  const netProfit = grossProfit - delivery - codTax;
+  const codRow   = payType === 'COD' ? `<div class="price-row" style="color:var(--red);font-size:13px;"><span>COD ٹیکس (4%):</span><span>- ${fmtRs(codTax)}</span></div>` : '';
+  document.getElementById('orderCalc').innerHTML = \`
     <div class="price-box">
-      <div class="price-row"><span>قیمت × تعداد:</span><span>${fmtRs(sub)}</span></div>
-      <div class="price-row"><span>چھوٹ:</span><span>- ${fmtRs(disc)}</span></div>
-      <div class="price-row"><span>کل رقم:</span><span style="color:var(--primary);">${fmtRs(fin)}</span></div>
-      <div class="price-row" style="font-size:13px;"><span>منافع:</span><span class="${prof>=0?'p-tag':'l-tag'}">${fmtRs(prof)}</span></div>
-    </div>`;
+      <div class="price-row"><span>قیمت × تعداد:</span><span>\${fmtRs(sub)}</span></div>
+      <div class="price-row"><span>چھوٹ:</span><span>- \${fmtRs(disc)}</span></div>
+      <div class="price-row"><span>گاہک سے وصول رقم:</span><span style="color:var(--primary);font-weight:700;">\${fmtRs(fin)}</span></div>
+      <div class="price-row" style="border-top:1px dashed #a5d6a7;padding-top:8px;margin-top:4px;font-size:13px;"><span>مجموعی منافع:</span><span>\${fmtRs(grossProfit)}</span></div>
+      <div class="price-row" style="font-size:13px;color:var(--red);"><span>ڈیلیوری چارجز:</span><span>- \${fmtRs(delivery)}</span></div>
+      \${codRow}
+      <div class="price-row"><span>خالص منافع:</span><span class="\${netProfit>=0?'p-tag':'l-tag'}">\${fmtRs(netProfit)}</span></div>
+    </div>\`;
 };
 
 window.saveOrder = async () => {
-  const mob    = document.getElementById('oMob').value.trim();
-  const prodId = document.getElementById('oProd').value;
-  const qty    = parseInt(document.getElementById('oQty').value)||1;
-  const disc   = parseFloat(document.getElementById('oDisc').value)||0;
-  const courier= document.getElementById('oCourier').value;
-  const track  = document.getElementById('oTrack').value.trim();
-  const status = document.getElementById('oStatus').value;
-  const editId = document.getElementById('editOrdId').value;
+  const mob      = document.getElementById('oMob').value.trim();
+  const prodId   = document.getElementById('oProd').value;
+  const qty      = parseInt(document.getElementById('oQty').value)||1;
+  const disc     = parseFloat(document.getElementById('oDisc').value)||0;
+  const delivery = parseFloat(document.getElementById('oDelivery').value)||0;
+  const payType  = document.getElementById('oPayType').value;
+  const courier  = document.getElementById('oCourier').value;
+  const track    = document.getElementById('oTrack').value.trim();
+  const status   = document.getElementById('oStatus').value;
+  const editId   = document.getElementById('editOrdId').value;
 
   if (!mob)    { toast('موبائل نمبر درج کریں','err'); return; }
   const cust = customers.find(c => c.mobile === mob);
@@ -1104,13 +1129,18 @@ window.saveOrder = async () => {
   const prod = products.find(p => p.id === prodId);
   if (!prod)   { toast('پروڈکٹ نہیں ملا','err'); return; }
 
-  const finalPrice = (prod.sellingPrice * qty) - disc;
+  const finalPrice    = (prod.sellingPrice * qty) - disc;
+  const grossProfit   = finalPrice - ((prod.costPrice||0) * qty);
+  const codTax        = payType === 'COD' ? Math.round(finalPrice * 0.04) : 0;
+  const netProfit     = grossProfit - delivery - codTax;
   const data = {
     customerId: cust.id, customerName: cust.name, customerMobile: cust.mobile,
     productId: prod.id, productName: prod.name,
     productUsageMethod: prod.usageMethod||'',
     productCostPrice: prod.costPrice||0,
     quantity: qty, discount: disc, finalPrice,
+    deliveryCharges: delivery, paymentType: payType,
+    codTax, netProfit,
     courierName: courier, trackingNumber: track, status
   };
   try {
@@ -1148,9 +1178,15 @@ function orderCard(o) {
     </div>
     <div class="chip-row">
       <span class="chip">💊 ${o.productName||'-'} × ${o.quantity||1}</span>
-      ${o.courierName?`<span class="chip">🚚 ${o.courierName}</span>`:''}
+      <span class="chip">${o.paymentType==='COD'?'📦 COD':'💵 Advance'}</span>
+      ${o.deliveryCharges?`<span class="chip">🚚 ڈیلیوری: ${fmtRs(o.deliveryCharges)}</span>`:''}
+      ${o.courierName?`<span class="chip">${o.courierName}</span>`:''}
       ${o.trackingNumber?`<span class="chip">📬 ${o.trackingNumber}</span>`:''}
       <span class="chip">📅 ${dt}</span>
+    </div>
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-top:8px;padding:8px 10px;background:#f5f8f5;border-radius:10px;font-size:13px;">
+      <span style="color:var(--text-light);">خالص منافع:</span>
+      <span class="${(o.netProfit||0)>=0?'p-tag':'l-tag'}">${fmtRs(o.netProfit !== undefined ? o.netProfit : (o.finalPrice||0)-((o.productCostPrice||0)*(o.quantity||1)))}</span>
     </div>
     <div class="card-actions">
       ${o.trackingNumber?`<button class="btn btn-green btn-sm" onclick="openWa('${o.id}')">📱 WA</button>`:''}
@@ -1214,7 +1250,9 @@ window.makeReport = () => {
   const active   = filtered.filter(o => o.status !== 'Returned');
   const sales    = active.reduce((s,o) => s+(o.finalPrice||0), 0);
   const cost     = active.reduce((s,o) => s+((o.productCostPrice||0)*(o.quantity||1)), 0);
-  const profit   = sales - cost;
+  const totalDelivery = active.reduce((s,o) => s+(o.deliveryCharges||0), 0);
+  const totalCodTax   = active.reduce((s,o) => s+(o.codTax||0), 0);
+  const profit   = active.reduce((s,o) => s+(o.netProfit !== undefined ? o.netProfit : (o.finalPrice||0)-((o.productCostPrice||0)*(o.quantity||1))), 0);
   const returned = filtered.filter(o => o.status === 'Returned');
 
   document.getElementById('reportOut').innerHTML = `
@@ -1223,27 +1261,36 @@ window.makeReport = () => {
     </div>
     <div class="rep-grid">
       <div class="rep-card"><div class="rep-num">${filtered.length}</div><div class="rep-lbl">کل آرڈر</div></div>
-      <div class="rep-card"><div class="rep-num" style="font-size:16px;">${fmtRs(sales)}</div><div class="rep-lbl">کل سیل</div></div>
+      <div class="rep-card"><div class="rep-num" style="font-size:16px;">${fmtRs(sales)}</div><div class="rep-lbl">کل سیل (وصولی)</div></div>
       <div class="rep-card"><div class="rep-num" style="font-size:16px;">${fmtRs(cost)}</div><div class="rep-lbl">کل لاگت</div></div>
       <div class="rep-card" style="border-color:${profit>=0?'#a5d6a7':'#f5c6cb'};">
         <div class="rep-num" style="color:${profit>=0?'var(--primary)':'var(--red)'};">${fmtRs(profit)}</div>
-        <div class="rep-lbl">کل منافع</div>
+        <div class="rep-lbl">خالص منافع</div>
       </div>
     </div>
     <div class="card" style="border-right:4px solid var(--accent);">
-      <div style="display:flex;justify-content:space-between;font-size:14px;margin-bottom:6px;">
+      <div style="display:flex;justify-content:space-between;font-size:14px;margin-bottom:8px;">
+        <span>🚚 ڈیلیوری چارجز:</span><strong style="color:var(--red);">- ${fmtRs(totalDelivery)}</strong>
+      </div>
+      <div style="display:flex;justify-content:space-between;font-size:14px;margin-bottom:8px;">
+        <span>📦 COD ٹیکس (4%):</span><strong style="color:var(--red);">- ${fmtRs(totalCodTax)}</strong>
+      </div>
+      <div style="display:flex;justify-content:space-between;font-size:14px;margin-bottom:8px;border-top:1px dashed #ddd;padding-top:8px;">
         <span>✅ Delivered آرڈر:</span><strong>${active.filter(o=>o.status==='Delivered').length}</strong>
       </div>
-      <div style="display:flex;justify-content:space-between;font-size:14px;margin-bottom:6px;">
+      <div style="display:flex;justify-content:space-between;font-size:14px;margin-bottom:8px;">
         <span>🚚 Dispatched آرڈر:</span><strong>${active.filter(o=>o.status==='Dispatched').length}</strong>
       </div>
-      <div style="display:flex;justify-content:space-between;font-size:14px;margin-bottom:6px;">
-        <span>⏳ Pending آرڈر:</span><strong>${active.filter(o=>o.status==='Pending').length}</strong>
+      <div style="display:flex;justify-content:space-between;font-size:14px;margin-bottom:8px;">
+        <span>💵 Advance آرڈر:</span><strong>${active.filter(o=>o.paymentType==='Advance'||!o.paymentType).length}</strong>
+      </div>
+      <div style="display:flex;justify-content:space-between;font-size:14px;margin-bottom:8px;">
+        <span>📦 COD آرڈر:</span><strong>${active.filter(o=>o.paymentType==='COD').length}</strong>
       </div>
       <div style="display:flex;justify-content:space-between;font-size:14px;color:var(--red);">
         <span>↩️ Returned آرڈر (سیل سے خارج):</span><strong>${returned.length}</strong>
       </div>
-    </div>`;
+    </div>\`;
 };
 </script>
 </body>
